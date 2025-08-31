@@ -5,41 +5,39 @@ import rclpy  # type: ignore
 from emg_grip_interfaces.msg import GripForce  # type: ignore
 from godirect_api.gdx_class import gdx  # type: ignore
 from rclpy.node import Node  # type: ignore
+from rclpy.qos import QoSProfile  # type: ignore
 
 
 class GodirectPublisher(Node):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__('godirect_publisher')
+        self.param_defaults: dict[str, float | int | str] = {
+            'device_name': '',
+            'selected_sensor': 1,
+            'measurement_type': 'grip',
+            'sampling_rate': 200,
+            'calibrate_signal': 5,
+            'queue_size': 10,
+            # No calibration by default
+            'lin_coeff': 1.0,
+            'square_coeff': 0.0,
+            'cubic_coeff': 0.0,
+            'fourth_ord_coeff': 0.0,
+        }
         # Declare parameters with default values
-        self.declare_parameter('device_name', '')
-        self.declare_parameter('selected_sensor', 1)
-        self.declare_parameter('measurement_type', 'grip')
-        self.declare_parameter('sampling_rate', 200)
-        self.declare_parameter('calibrate_signal', 5)
-        self.declare_parameter('queue_size', 10)
-        self.declare_parameter('lin_coeff', 1.0)
-        self.declare_parameter('square_coeff', 0.0)
-        self.declare_parameter('cubic_coeff', 0.0)
-        self.declare_parameter('fourth_ord_coeff', 0.0)
-        param_keys = [
-            'device_name',
-            'selected_sensor',
-            'measurement_type',
-            'sampling_rate',
-            'calibrate_signal',
-            'queue_size',
-            'lin_coeff',
-            'square_coeff',
-            'cubic_coeff',
-            'fourth_ord_coeff',
-        ]
+        for key, value in self.param_defaults.items():
+            self.declare_parameter(key, value)
 
         # Collect all parameters into a single dict
-        self.params = {key: self.get_parameter(key).value for key in param_keys}
+        self.params: dict[str, float | int | str] = {
+            key: self.get_parameter(key).value for key in self.param_defaults.keys()
+        }
 
         # Create publisher
         self.publisher = self.create_publisher(
-            GripForce, 'grip_force_stream', self.params['queue_size']
+            msg_type=GripForce,
+            topic='grip_force_stream',
+            qos_profile=QoSProfile(depth=self.params['queue_size']),
         )
 
         # Initialize and run GoDirect device
