@@ -12,20 +12,26 @@ import math
 import sys
 from collections import deque
 
-import rospy
-from emg_grip_interfaces.msg import GripForce
-from godirect import GoDirect
+import rclpy  # type: ignore
+from emg_grip_interfaces.msg import GripForce  # type: ignore
+from godirect import GoDirect  # type: ignore
+from rclpy.duration import Duration  # type: ignore
 
 
 class gdx:
     # Variables passed between the gdx functions.
 
-    # buffer - a 2D list to store the excess data from a sensor when multi-points are collected from a read due to fast collection.
-    buffer = []
+    # buffer - a 2D list to store the excess data from a sensor when multi-points are
+    # collected from a read due to fast collection.
+    buffer: list = []
 
-    def __init__(self, device_name) -> None:
+    def __init__(self, device_name, node_logger, node_clock) -> None:
         # Set device name
         self.device_name = device_name
+        # Set logger
+        self.node_logger = node_logger
+        # Set clock
+        self.node_clock = node_clock
         # ble_open - this is a flag to keep track of when godirect is asked to open ble,
         # to make sure it's not asked twice.
         self.ble_open = False
@@ -45,14 +51,14 @@ class gdx:
             self.open_ble(self.device_name)
             return self
         except Exception as e:
-            rospy.logerr(f'Cannot connect to device! Exception: {e}')
+            self.node_logger.error(f'Cannot connect to device! Exception: {e}')
             sys.exit('Exit with error!')
 
     def __exit__(self, exception_type, exception_value, exception_traceback):
         try:
             self.close()
         except Exception as e:
-            rospy.logerr(f'Cannot close BLE! Exception: {e}')
+            self.node_logger.error(f'Cannot close BLE! Exception: {e}')
             sys.exit('Exit with error!')
 
     def close(self):
@@ -62,12 +68,12 @@ class gdx:
         if not self.device_hn:
             raise Exception('No device connected!')
 
-        rospy.loginfo(f'Closing device {self.device_hn.name}')
+        self.node_logger.info(f'Closing device {self.device_hn.name}')
         self.device_hn.close()
 
         self.ble_open = False
         self.godirect.quit()
-        rospy.loginfo('Quit godirect!')
+        self.node_logger.info('Quit godirect!')
 
     def open_ble(self, device_to_open):
         """Open a Go Direct device via bluetooth for data collection.
@@ -77,10 +83,10 @@ class gdx:
           For example,  "GDX-FOR 071000U9" or "GDX-FOR 071000U9, GDX-HD 151000C1".
         """
 
-        if self.ble_open == True:
+        if self.ble_open:
             raise Exception('Cannot open BLE - already open')
 
-        rospy.loginfo('Wait for bluetooth initialization...')
+        self.node_logger.info('Wait for bluetooth initialization...')
 
         # Tell godirect you want to use ble.
         self.godirect = GoDirect(use_ble=True, use_ble_bg=False, use_usb=False)
@@ -91,14 +97,15 @@ class gdx:
         if len(found_devices) < 1:
             raise Exception('No Go Direct Devices Found on Bluetooth')
 
-        # The case below occurs when the device_to_open argument is given a specific device
-        # name or names, such as "GDX-FOR 071000U9" or "GDX-FOR 071000U9, GDX-HD 151000C1"
-        # In the for loop each device to open is compared to the devices found in the list of
-        # found_devices. If the names match, then we store the device as a device to open.
+        # The case below occurs when the device_to_open argument is given a specific
+        # device name or names, such as "GDX-FOR 071000U9" or "GDX-FOR 071000U9,
+        # GDX-HD 151000C1". In the for loop each device to open is compared to the
+        # devices found in the list of found_devices. If the names match, then we store
+        # the device as a device to open.
         if isinstance(device_to_open, str):
             for device in found_devices:
                 if device_to_open == str(device.name):
-                    rospy.loginfo(f'Device {device_to_open} found!')
+                    self.node_logger.info(f'Device {device_to_open} found!')
                     self.device_hn = device
                     break
                 else:
@@ -109,12 +116,12 @@ class gdx:
             raise Exception('device_name not string!')
 
         # Open the device or device that were selected in one of the cases above.
-        rospy.loginfo(f'Attempting to open {self.device_hn.name}')
+        self.node_logger.info(f'Attempting to open {self.device_hn.name}')
         open_device_success = self.device_hn.open()
         if open_device_success:
-            rospy.loginfo(f'Device {self.device_hn.name} open!')
+            self.node_logger.info(f'Device {self.device_hn.name} open!')
             self.ble_open = True
-            rospy.sleep(0.5)
+            self.node_clock.sleep_for(Duration(seconds=0.5))
         else:
             self.ble_open = False
             raise Exception(f'Cannot open device {self.device_hn.name}')
@@ -142,11 +149,12 @@ class gdx:
         # The enabled sensor object is stored in a variable, to be used in the
         # read() function.
         self.enabled_sensor = self.device_hn.get_enabled_sensors()[0]
-        rospy.loginfo('Sensor enabled!')
-        rospy.logdebug(f'Sensor enabled: {self.enabled_sensor}')
+        self.node_logger.info('Sensor enabled!')
+        self.node_logger.debug(f'Sensor enabled: {self.enabled_sensor}')
 
     def start(self, sampling_rate):
-        """Start collecting data from the sensors that were selected in the select_sensors() function.
+        """Start collecting data from the sensors that were selected in the
+        select_sensors() function.
 
         Args:
             sampling_rate (float): Dynamometer sampling rate in Hz
@@ -159,11 +167,11 @@ class gdx:
         # Convert sampling rate in Hz to period in ms and round down
         self.period = math.floor(1 / sampling_rate * 1000)
         self.sampling_rate = 1 / (self.period / 1000)
-        rospy.loginfo(f'Sampling rate: {self.sampling_rate} Hz')
-        rospy.loginfo(f'Period: {self.period} ms')
+        self.node_logger.info(f'Sampling rate: {self.sampling_rate} Hz')
+        self.node_logger.info(f'Period: {self.period} ms')
 
         # Start data collection (of the enabled sensors) for each active device.
-        rospy.loginfo('Starting data collection.')
+        self.node_logger.info('Starting data collection.')
         self.device_hn.start(period=self.period)
 
     def calibrate_sensor(self, seconds=0.5):
@@ -180,49 +188,53 @@ class gdx:
         if not self.enabled_sensor:
             raise Exception('calibrate_sensor() - no enabled sensor')
 
-        if self.sensors_calibrated == True:
-            rospy.loginfo('Sensors already calibrated - Skipping calibration!')
+        if self.sensors_calibrated:
+            self.node_logger.info('Sensors already calibrated - Skipping calibration!')
             return
 
         if seconds == 0:
-            rospy.loginfo('Skipping sensor calibration!')
+            self.node_logger.info('Skipping sensor calibration!')
             return
 
-        rospy.loginfo(f'Performing calibration. Please wait {seconds} seconds ...')
+        self.node_logger.info(
+            f'Performing calibration. Please wait {seconds} seconds ...'
+        )
         # Enabled force sensor
         sensor = self.enabled_sensor
         # Calibration duration
         self.calibration_duration = seconds
-        calibration_duration = rospy.Duration(secs=self.calibration_duration)
-        # Calibration data queue
+        calibration_duration = Duration(seconds=self.calibration_duration)
         calibration_data = deque(maxlen=int(1e6))
-        start_time = rospy.Time.now()
+        start_time = self.node_clock.now()
         try:
-            while (rospy.Time.now() - start_time) < calibration_duration:
+            while (self.node_clock.now() - start_time) < calibration_duration:
                 # Take the readings from Force sensor on one device
                 # Function read() is blocking so it may be called in a tight loop.
                 if self.device_hn.read():
                     # Take readings from force sensor in the device
-                    # get the latest measurment read from the sensor or 0 if no measurements
-                    # have been read
+                    # get the latest measurment read from the sensor or 0 if no
+                    # measurements have been read
                     data = sensor.values
                     # Extend data queue
                     calibration_data.extend(data)
-                    # Clear the values list in sensor (if sampling is greater than loop speed)
+                    # Clear the values list in sensor (if sampling is greater than loop
+                    # speed)
                     sensor.clear()
                     # Increment iterator
-        except rospy.ROSInterruptException:
+        except KeyboardInterrupt:
             # Stop data collection on the enabled sensors.
             self.device_hn.stop()
-            rospy.loginfo(f'Stopped device {self.device_hn.name} data collection!')
+            self.node_logger.info(
+                f'Stopped device {self.device_hn.name} data collection!'
+            )
             # Raise for higher level try-except
-            raise rospy.ROSInterruptException
+            raise KeyboardInterrupt
 
         # Convert data to list and calculate mean
         calibration_data = list(calibration_data)
         self.sensor_offset = sum(calibration_data) / len(calibration_data)
         self.sensors_calibrated = True
-        rospy.loginfo(
+        self.node_logger.info(
             f'Calibration successful! Sensor offset: {self.sensor_offset:.5f}'
         )
         return
@@ -240,7 +252,7 @@ class gdx:
         readings to ROS topic. Exit with ctrl-c.
 
         Args:
-            publisher: rospy.Publisher object with GripForce msg
+            publisher: rclpy.Publisher object with GripForce msg
         """
         # First check to make sure there are devices connected.
         if not self.device_hn:
@@ -254,22 +266,22 @@ class gdx:
         # Calibrated sensor offset
         sensor_offset = self.sensor_offset
         # Perion in nsecs
-        period = rospy.Duration(nsecs=self.period * 1e6)
+        period = Duration(nanoseconds=self.period * 1e6)
         # ROS message
         force_data = GripForce()
         force_data.header.frame_id = measurement_type
         # Iterator
         sig_iter = 0
-        rospy.loginfo('Publishing grip data. Press ctrl-c to stop ...')
+        self.node_logger.info('Publishing grip data. Press ctrl-c to stop ...')
         try:
-            while not rospy.is_shutdown():
+            while rclpy.ok():
                 # Take the readings from Force sensor on one device
                 # Function read() is blocking so it may be called in a tight loop.
                 if self.device_hn.read():
                     # Take readings from force sensor in the device
-                    # get the latest measurment read from the sensor or 0 if no measurements
-                    # have been read
-                    time_current = rospy.Time.now()
+                    # get the latest measurment read from the sensor or 0 if no
+                    # measurements have been read
+                    time_current = self.node_clock.now()
                     data = sensor.values
                     # Set message data
                     timestamps_iter = reversed(
@@ -290,19 +302,22 @@ class gdx:
                             + fourth_ord_coeff * (x**4)
                         )
                         publisher.publish(force_data)
-                    # Clear the values list in sensor (if sampling is greater than loop speed)
+                    # Clear the values list in sensor (if sampling is greater than loop
+                    # speed)
                     sensor.clear()
                     # Increment iterator
                     sig_iter += len(data)
-        except rospy.ROSInterruptException:
+        except KeyboardInterrupt:
             # Stop data collection on the enabled sensors.
             self.device_hn.stop()
-            rospy.loginfo(f'Stopped device {self.device_hn.name} data collection!')
+            self.node_logger.info(
+                f'Stopped device {self.device_hn.name} data collection!'
+            )
             # Raise for higher level try-except
-            raise rospy.ROSInterruptException
+            raise KeyboardInterrupt
         # Stop data collection on the enabled sensors.
         self.device_hn.stop()
-        rospy.loginfo(f'Stopped device {self.device_hn.name} data collection!')
+        self.node_logger.info(f'Stopped device {self.device_hn.name} data collection!')
         return
 
     def device_info(self):
@@ -321,14 +336,15 @@ class gdx:
         # 2 = battery %, 3 = charger state, 4 = rssi
         device_info = []
 
-        # If there is just one device connected, package the info in a 1D list [device info]
+        # If there is just one device connected, package the info in a 1D list [device
+        # info]
         device_info.append(self.device_hn._name)
         device_info.append(self.device_hn._description)
         device_info.append(self.device_hn._battery_level_percent)
         charger_state = ['Idle', 'Charging', 'Complete', 'Error']
         device_info.append(charger_state[self.device_hn._charger_state])
         device_info.append(self.device_hn._rssi)
-        rospy.loginfo(
+        self.node_logger.info(
             f'Device Info - {self.device_hn.name}:\n'
             f'\tDescription: {device_info[1]}\n'
             f'\tBattery percent: {device_info[2]}\n'
@@ -356,7 +372,7 @@ class gdx:
         # Get the enabled sensors from each device, one device at a time
         sensor_info.append(self.enabled_sensor.sensor_description)
         sensor_info.append(self.enabled_sensor.sensor_units)
-        rospy.loginfo(
+        self.node_logger.info(
             f'Sensor Info - {self.device_hn.name}:\n'
             f'\tSensor description: {sensor_info[0]}\n'
             f'\tSensor units: {sensor_info[1]}\n'

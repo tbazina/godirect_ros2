@@ -25,12 +25,13 @@ class GodirectPublisher(Node):
             'fourth_ord_coeff': 0.0,
         }
         # Declare parameters with default values
-        for key, value in self.param_defaults.items():
-            self.declare_parameter(key, value)
+        # for key, value in self.param_defaults.items():
+        #     self.declare_parameter(key, value)
 
-        # Collect all parameters into a single dict
+        # Declare all parameters into a single dict
         self.params: dict[str, float | int | str] = {
-            key: self.get_parameter(key).value for key in self.param_defaults.keys()
+            key: self.declare_parameter(key, default_value).value
+            for key, default_value in self.param_defaults.items()
         }
 
         # Create publisher
@@ -42,7 +43,11 @@ class GodirectPublisher(Node):
 
         # Initialize and run GoDirect device
         try:
-            Gdx = gdx(self.params['device_name'])
+            Gdx = gdx(
+                device_name=self.params['device_name'],
+                node_logger=self.get_logger(),
+                node_clock=self.get_clock(),
+            )
             with Gdx as gdx_hd:
                 gdx_hd.device_info()
                 gdx_hd.select_sensors(sensors=self.params['selected_sensor'])
