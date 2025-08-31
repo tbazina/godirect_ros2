@@ -11,7 +11,7 @@ def generate_launch_description() -> LaunchDescription:
         [
             FindPackageShare('godirect_ros2'),
             'config',
-            'godirect_hand_dynamometer_config.yaml',
+            'hand_dynamometer_config.yaml',
         ]
     )
 
@@ -19,9 +19,9 @@ def generate_launch_description() -> LaunchDescription:
         [
             Node(
                 package='godirect_ros2',
-                executable='godirect_publisher',
-                name='godirect_publisher',
-                namespace='gdx',
+                executable='grip_force_publisher',
+                name='grip_force_publisher',
+                # namespace='gdx',
                 output='screen',
                 parameters=[config_file],
             )

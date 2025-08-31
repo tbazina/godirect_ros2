@@ -24,7 +24,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'godirect_publisher = godirect_ros2.nodes.godirect_publisher:main',
+            'grip_force_publisher = godirect_ros2.nodes.grip_force_publisher:main',
         ],
     },
 )

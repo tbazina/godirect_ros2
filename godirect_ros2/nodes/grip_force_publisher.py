@@ -8,9 +8,9 @@ from rclpy.node import Node  # type: ignore
 from rclpy.qos import QoSProfile  # type: ignore
 
 
-class GodirectPublisher(Node):
+class GripForcePublisher(Node):
     def __init__(self) -> None:
-        super().__init__('godirect_publisher')
+        super().__init__('grip_force_publisher')
         self.param_defaults: dict[str, float | int | str] = {
             'device_name': '',
             'selected_sensor': 1,
@@ -69,7 +69,7 @@ class GodirectPublisher(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    node = GodirectPublisher()
+    node = GripForcePublisher()
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()
