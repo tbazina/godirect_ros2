@@ -265,8 +265,8 @@ class gdx:
         sensor = self.enabled_sensor
         # Calibrated sensor offset
         sensor_offset = self.sensor_offset
-        # Perion in nsecs
-        period = Duration(nanoseconds=self.period * 1e6)
+        # Period in nsecs
+        period = self.period * 1e6
         # ROS message
         force_data = GripForce()
         force_data.header.frame_id = measurement_type
@@ -285,14 +285,17 @@ class gdx:
                     data = sensor.values
                     # Set message data
                     timestamps_iter = reversed(
-                        [time_current - period * i for i in range(len(data))]
+                        [
+                            time_current - Duration(nanoseconds=period * i)
+                            for i in range(len(data))
+                        ]
                     )
                     sig_id = [sig_iter + i for i in range(len(data))]
                     # Publish messages
                     for ts, id, value in zip(timestamps_iter, sig_id, data):
                         # Publish acquired data to topic
-                        force_data.header.stamp = ts
-                        force_data.header.seq = id
+                        force_data.header.stamp = ts.to_msg()
+                        # force_data.header.seq = id
                         # Use calibrated sensor offset
                         x = value - sensor_offset
                         force_data.grip_force = (

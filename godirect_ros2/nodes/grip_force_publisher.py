@@ -3,9 +3,10 @@ import traceback
 
 import rclpy  # type: ignore
 from emg_grip_interfaces.msg import GripForce  # type: ignore
-from godirect_api.gdx_class import gdx  # type: ignore
 from rclpy.node import Node  # type: ignore
 from rclpy.qos import QoSProfile  # type: ignore
+
+from godirect_ros2.godirect_api.gdx_class import gdx  # type: ignore
 
 
 class GripForcePublisher(Node):
