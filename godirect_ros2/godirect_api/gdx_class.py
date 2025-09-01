@@ -12,7 +12,6 @@ import math
 import sys
 from collections import deque
 
-import rclpy  # type: ignore
 from emg_grip_interfaces.msg import GripForce  # type: ignore
 from godirect import GoDirect  # type: ignore
 from rclpy.duration import Duration  # type: ignore
@@ -239,7 +238,7 @@ class gdx:
         )
         return
 
-    def read(
+    def read_publish_batch(
         self,
         publisher,
         measurement_type='grip',
@@ -270,58 +269,37 @@ class gdx:
         # ROS message
         force_data = GripForce()
         force_data.header.frame_id = measurement_type
-        # Iterator
-        sig_iter = 0
-        self.node_logger.info('Publishing grip data. Press ctrl-c to stop ...')
-        try:
-            while rclpy.ok():
-                # Take the readings from Force sensor on one device
-                # Function read() is blocking so it may be called in a tight loop.
-                if self.device_hn.read():
-                    # Take readings from force sensor in the device
-                    # get the latest measurment read from the sensor or 0 if no
-                    # measurements have been read
-                    time_current = self.node_clock.now()
-                    data = sensor.values
-                    # Set message data
-                    timestamps_iter = reversed(
-                        [
-                            time_current - Duration(nanoseconds=period * i)
-                            for i in range(len(data))
-                        ]
-                    )
-                    sig_id = [sig_iter + i for i in range(len(data))]
-                    # Publish messages
-                    for ts, id, value in zip(timestamps_iter, sig_id, data):
-                        # Publish acquired data to topic
-                        force_data.header.stamp = ts.to_msg()
-                        # force_data.header.seq = id
-                        # Use calibrated sensor offset
-                        x = value - sensor_offset
-                        force_data.grip_force = (
-                            lin_coeff * x
-                            + square_coeff * (x**2)
-                            + cubic_coeff * (x**3)
-                            + fourth_ord_coeff * (x**4)
-                        )
-                        publisher.publish(force_data)
-                    # Clear the values list in sensor (if sampling is greater than loop
-                    # speed)
-                    sensor.clear()
-                    # Increment iterator
-                    sig_iter += len(data)
-        except KeyboardInterrupt:
-            # Stop data collection on the enabled sensors.
-            self.device_hn.stop()
-            self.node_logger.info(
-                f'Stopped device {self.device_hn.name} data collection!'
+        # Take the readings from Force sensor on one device
+        # Function read() is blocking
+        if self.device_hn.read():
+            # Take readings from force sensor in the device
+            # get the latest measurment read from the sensor or 0 if no
+            # measurements have been read
+            time_current = self.node_clock.now()
+            data = sensor.values
+            # Set message data
+            timestamps_iter = reversed(
+                [
+                    time_current - Duration(nanoseconds=period * i)
+                    for i in range(len(data))
+                ]
             )
-            # Raise for higher level try-except
-            raise KeyboardInterrupt
-        # Stop data collection on the enabled sensors.
-        self.device_hn.stop()
-        self.node_logger.info(f'Stopped device {self.device_hn.name} data collection!')
-        return
+            # Publish messages
+            for ts, value in zip(timestamps_iter, data):
+                # Publish acquired data to topic
+                force_data.header.stamp = ts.to_msg()
+                # Use calibrated sensor offset
+                x = value - sensor_offset
+                force_data.grip_force = (
+                    lin_coeff * x
+                    + square_coeff * (x**2)
+                    + cubic_coeff * (x**3)
+                    + fourth_ord_coeff * (x**4)
+                )
+                publisher.publish(force_data)
+            # Clear the values list in sensor (if sampling is greater than loop
+            # speed)
+            sensor.clear()
 
     def device_info(self):
         """Prints and returns information about the device. The device must be
