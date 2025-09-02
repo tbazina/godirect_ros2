@@ -47,7 +47,7 @@ class GripForcePublisher(Node):
         # Open GoDirect device
         self.gdx_hd = self.gdx.__enter__()
         try:
-            self.initialize_godirect()
+            self.setup_godirect()
             # Create timer for sensor reading
             self.get_logger().info('Publishing grip data. Press ctrl-c to stop ...')
             self.create_timer(
@@ -60,7 +60,7 @@ class GripForcePublisher(Node):
             self.get_logger().error(f'Caught exception: {e}')
             self.get_logger().error(traceback.format_exc())
 
-    def initialize_godirect(self):
+    def setup_godirect(self):
         self.gdx_hd.device_info()
         self.gdx_hd.select_sensors(sensors=self.params['selected_sensor'])
         self.gdx_hd.enabled_sensor_info()
