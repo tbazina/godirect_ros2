@@ -21,7 +21,7 @@ grip_force_publisher:
     # Use average of first several sec to zero the response (0 - no calibration).
     # Hold the sensor in same position it will be used for data collection.
     # Do not grip sensor during this time.
-    calibrate_signal: 5 # sec
+    zero_signal: 5 # sec
     # Size of the queue for asynchronous publishing on topic
     queue_size: 10
     # Calibration coefficients

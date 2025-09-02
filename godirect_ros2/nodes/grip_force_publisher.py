@@ -17,7 +17,7 @@ class GripForcePublisher(Node):
             'selected_sensor': 1,
             'measurement_type': 'grip',
             'sampling_rate': 200,
-            'calibrate_signal': 5,
+            'zero_signal': 5,
             'queue_size': 10,
             # No calibration by default
             'lin_coeff': 1.0,
@@ -25,9 +25,6 @@ class GripForcePublisher(Node):
             'cubic_coeff': 0.0,
             'fourth_ord_coeff': 0.0,
         }
-        # Declare parameters with default values
-        # for key, value in self.param_defaults.items():
-        #     self.declare_parameter(key, value)
 
         # Declare all parameters into a single dict
         self.params: dict[str, float | int | str] = {
@@ -68,7 +65,7 @@ class GripForcePublisher(Node):
         self.gdx_hd.select_sensors(sensors=self.params['selected_sensor'])
         self.gdx_hd.enabled_sensor_info()
         self.gdx_hd.start(sampling_rate=self.params['sampling_rate'])
-        self.gdx_hd.calibrate_sensor(seconds=self.params['calibrate_signal'])
+        self.gdx_hd.zero_sensor(seconds=self.params['zero_signal'])
 
     def read_sensor_batch(self):
         try:

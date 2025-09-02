@@ -40,9 +40,9 @@ class gdx:
         self.enabled_sensor = None
         # Set godirect interface to None
         self.godirect = None
-        # Set sensor offset to zero (for calibration)
+        # Set sensor offset to zero (for zeroing)
         self.sensor_offset = 0
-        self.sensors_calibrated = False
+        self.sensors_zeroed = False
 
     def __enter__(self):
         # Initialize GoDirect for BLE connection
@@ -173,40 +173,38 @@ class gdx:
         self.node_logger.info('Starting data collection.')
         self.device_hn.start(period=self.period)
 
-    def calibrate_sensor(self, seconds=0.5):
+    def zero_sensor(self, seconds=0.5):
         """Zero the sensor offset -hold the Dynamometer in data collection position
         without gripping sensors
 
         Args:
-            seconds (float, optional): Number of seconds to calibrate. Defaults to 0.5.
+            seconds (float, optional): Number of seconds to zero. Defaults to 0.5.
         """
         # First check to make sure there are devices connected.
         if not self.device_hn:
-            raise Exception('calibrate_sensor() - no device connected')
+            raise Exception('zero_sensor() - no device connected')
 
         if not self.enabled_sensor:
-            raise Exception('calibrate_sensor() - no enabled sensor')
+            raise Exception('zero_sensor() - no enabled sensor')
 
-        if self.sensors_calibrated:
-            self.node_logger.info('Sensors already calibrated - Skipping calibration!')
+        if self.sensors_zeroed:
+            self.node_logger.info('Sensors already zeroed - Skipping zeroing!')
             return
 
         if seconds == 0:
-            self.node_logger.info('Skipping sensor calibration!')
+            self.node_logger.info('Skipping sensor zeroing!')
             return
 
-        self.node_logger.info(
-            f'Performing calibration. Please wait {seconds} seconds ...'
-        )
+        self.node_logger.info(f'Performing zeroing. Please wait {seconds} seconds ...')
         # Enabled force sensor
         sensor = self.enabled_sensor
-        # Calibration duration
-        self.calibration_duration = seconds
-        calibration_duration = Duration(seconds=self.calibration_duration)
-        calibration_data = deque(maxlen=int(1e6))
+        # Zeroing duration
+        self.zeroing_duration = seconds
+        zeroing_duration = Duration(seconds=self.zeroing_duration)
+        zeroing_data = deque(maxlen=int(1e6))
         start_time = self.node_clock.now()
         try:
-            while (self.node_clock.now() - start_time) < calibration_duration:
+            while (self.node_clock.now() - start_time) < zeroing_duration:
                 # Take the readings from Force sensor on one device
                 # Function read() is blocking so it may be called in a tight loop.
                 if self.device_hn.read():
@@ -215,7 +213,7 @@ class gdx:
                     # measurements have been read
                     data = sensor.values
                     # Extend data queue
-                    calibration_data.extend(data)
+                    zeroing_data.extend(data)
                     # Clear the values list in sensor (if sampling is greater than loop
                     # speed)
                     sensor.clear()
@@ -230,11 +228,11 @@ class gdx:
             raise KeyboardInterrupt
 
         # Convert data to list and calculate mean
-        calibration_data = list(calibration_data)
-        self.sensor_offset = sum(calibration_data) / len(calibration_data)
-        self.sensors_calibrated = True
+        zeroing_data = list(zeroing_data)
+        self.sensor_offset = sum(zeroing_data) / len(zeroing_data)
+        self.sensors_zeroed = True
         self.node_logger.info(
-            f'Calibration successful! Sensor offset: {self.sensor_offset:.5f}'
+            f'Zeroing successful! Sensor offset: {self.sensor_offset:.5f}'
         )
         return
 
@@ -262,7 +260,7 @@ class gdx:
 
         # Enabled force sensor
         sensor = self.enabled_sensor
-        # Calibrated sensor offset
+        # Zeroed sensor offset
         sensor_offset = self.sensor_offset
         # Period in nsecs
         period = self.period * 1e6
@@ -288,7 +286,7 @@ class gdx:
             for ts, value in zip(timestamps_iter, data):
                 # Publish acquired data to topic
                 force_data.header.stamp = ts.to_msg()
-                # Use calibrated sensor offset
+                # Use zeroed sensor offset
                 x = value - sensor_offset
                 force_data.grip_force = (
                     lin_coeff * x
