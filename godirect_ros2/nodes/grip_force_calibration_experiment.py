@@ -152,3 +152,7 @@ def main(args=None):
     finally:
         spin_thread.join()
         node.destroy_node()
+
+
+if __name__ == '__main__':
+    main()
