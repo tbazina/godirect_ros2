@@ -15,7 +15,19 @@ https://github.com/VernierST/godirect-py/compare/main...wip/31_bleak_discover
 ```colcon build --symlink-install```
 
 ## Usage
-1. Turn on the Hand Dynamometer
-2. Run the node:
-```ros2 launch godirect_ros2 publish_grip_force_data.launch.py```
+Turn on the Hand Dynamometer.
 
+Streaming grip force data:
+1. Edit sensor parameters in `config/hand_dynamometer_config.yaml`
+2. Run the node:
+   ```ros2 launch godirect_ros2 publish_grip_force.launch.py```
+3. Check the topic:
+   ```ros2 topic echo /grip_force_stream```
+
+Calibration experiment as a service (and start the sensor):
+1. Edit parameters in `config/hand_dynamometer_config.yaml`
+2. Launch calibration:
+    ```ros2 launch godirect_ros2 grip_force_calibration_experiment.launch.py```
+3. Call the service:
+
+```ros2 service call /grip_force_calibration_experiment emg_grip_interfaces/srv/CalibrationExperiment "request_experiment: true"```
