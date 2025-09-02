@@ -16,8 +16,8 @@ class GripForcePublisher(Node):
             'device_name': '',
             'selected_sensor': 1,
             'measurement_type': 'grip',
-            'sampling_rate': 200,
-            'zero_signal': 5,
+            'sampling_rate': 200.0,
+            'zero_signal': 5.0,
             'queue_size': 10,
             # No calibration by default
             'lin_coeff': 1.0,

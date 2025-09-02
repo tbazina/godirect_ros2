@@ -21,7 +21,6 @@ def generate_launch_description() -> LaunchDescription:
                 package='godirect_ros2',
                 executable='grip_force_publisher',
                 name='grip_force_publisher',
-                # namespace='gdx',
                 output='screen',
                 parameters=[config_file],
             )

@@ -12,8 +12,9 @@ setup(
     data_files=[
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        (os.path.join('share', package_name, 'launch'), glob('launch/*')),
+        (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py')),
         (os.path.join('share', package_name, 'config'), glob('config/*.yaml')),
+        (os.path.join('share', package_name, 'config'), glob('config/*.xml')),
     ],
     install_requires=['setuptools', 'godirect'],
     zip_safe=True,
@@ -25,6 +26,7 @@ setup(
     entry_points={
         'console_scripts': [
             'grip_force_publisher = godirect_ros2.nodes.grip_force_publisher:main',
+            'grip_force_calibration = godirect_ros2.nodes.grip_force_calibration_experiment:main',
         ],
     },
 )

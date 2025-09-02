@@ -17,11 +17,11 @@ grip_force_publisher:
     # Dynamometer sampling rate (max 1000 Hz)
     # Sampling period is integer in ms, so possible rates are:
     # 1000, 500, 333.33, 200, 166.66, 142.857, 125, 111, 100, ...
-    sampling_rate: 200 # Hz
+    sampling_rate: 200.0 # Hz
     # Use average of first several sec to zero the response (0 - no calibration).
     # Hold the sensor in same position it will be used for data collection.
     # Do not grip sensor during this time.
-    zero_signal: 5 # sec
+    zero_signal: 4.0 # sec
     # Size of the queue for asynchronous publishing on topic
     queue_size: 10
     # Calibration coefficients
@@ -29,3 +29,9 @@ grip_force_publisher:
     square_coeff: -0.000258804902934232
     cubic_coeff: -9.00277986718548e-8
     fourth_ord_coeff: 7.61523538648609e-10
+
+grip_force_calibration:
+  ros__parameters:
+    experiment_duration: 10.0  # seconds
+    # Sampling rate has to be read from grip_force_publisher
+    service_name: '/grip_force_publisher/get_parameters'
