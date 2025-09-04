@@ -14,6 +14,7 @@ from collections import deque
 
 from emg_grip_interfaces.msg import GripForce  # type: ignore
 from godirect import GoDirect  # type: ignore
+from rclpy.clock import Clock  # type: ignore
 from rclpy.duration import Duration  # type: ignore
 
 
@@ -24,13 +25,13 @@ class gdx:
     # collected from a read due to fast collection.
     buffer: list = []
 
-    def __init__(self, device_name, node_logger, node_clock) -> None:
+    def __init__(self, device_name, node_logger, node_clock: Clock) -> None:
         # Set device name
         self.device_name = device_name
         # Set logger
         self.node_logger = node_logger
         # Set clock
-        self.node_clock = node_clock
+        self.node_clock: Clock = node_clock
         # ble_open - this is a flag to keep track of when godirect is asked to open ble,
         # to make sure it's not asked twice.
         self.ble_open = False
@@ -63,16 +64,17 @@ class gdx:
     def close(self):
         """Disconnect the BLE device and quit godirect."""
 
+        # Use print() instead of logger because logger may be invalid
         # First check to make sure there are devices connected.
         if not self.device_hn:
             raise Exception('No device connected!')
 
-        self.node_logger.info(f'Closing device {self.device_hn.name}')
+        print(f'Closing device {self.device_hn.name}', file=sys.stdout)
         self.device_hn.close()
 
         self.ble_open = False
         self.godirect.quit()
-        self.node_logger.info('Quit godirect!')
+        print('Quit godirect!', file=sys.stdout)
 
     def open_ble(self, device_to_open):
         """Open a Go Direct device via bluetooth for data collection.

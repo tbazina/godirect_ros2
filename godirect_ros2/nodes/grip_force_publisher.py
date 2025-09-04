@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
+import sys
 import traceback
 
 import rclpy  # type: ignore
 from emg_grip_interfaces.msg import GripForce  # type: ignore
+from rclpy.executors import ExternalShutdownException  # type: ignore
 from rclpy.node import Node  # type: ignore
 from rclpy.qos import QoSProfile  # type: ignore
 
@@ -38,27 +40,31 @@ class GripForcePublisher(Node):
             topic='grip_force_stream',
             qos_profile=QoSProfile(depth=self.params['queue_size']),
         )
-        # Initialize GoDirect device
-        self.gdx = gdx(
-            device_name=self.params['device_name'],
-            node_logger=self.get_logger(),
-            node_clock=self.get_clock(),
-        )
-        # Open GoDirect device
-        self.gdx_hd = self.gdx.__enter__()
+
+    def initialize_godirect_start_streaming(self):
         try:
+            # Initialize GoDirect device
+            self.gdx = gdx(
+                device_name=self.params['device_name'],
+                node_logger=self.get_logger(),
+                node_clock=self.get_clock(),
+            )
+            # Open GoDirect device
+            self.gdx_hd = self.gdx.__enter__()
             self.setup_godirect()
             # Create timer for sensor reading
-            self.get_logger().info('Publishing grip data. Press ctrl-c to stop ...')
-            self.create_timer(
+            self.get_logger().info('Publishing grip data. Press Ctrl+C to stop ...')
+            self.timer = self.create_timer(
                 # Make timer 10 times slower then sampling rate
                 # data is processed in batches
-                timer_period_sec=1.0 / (self.params['sampling_rate'] * 10),  # type: ignore
+                timer_period_sec=1.0 / self.params['sampling_rate'] * 10,  # type: ignore
                 callback=self.read_sensor_batch,
             )
+        except (KeyboardInterrupt, ExternalShutdownException):
+            self.get_logger().warn('User interrupted execution!')
         except Exception as e:
-            self.get_logger().error(f'Caught exception: {e}')
-            self.get_logger().error(traceback.format_exc())
+            self.get_logger().error(f'Failed to set up GoDirect: {e}')
+            self.get_logger().debug(traceback.format_exc())
 
     def setup_godirect(self):
         self.gdx_hd.device_info()
@@ -68,38 +74,57 @@ class GripForcePublisher(Node):
         self.gdx_hd.zero_sensor(seconds=self.params['zero_signal'])
 
     def read_sensor_batch(self):
-        try:
-            self.gdx_hd.read_publish_batch(
-                publisher=self.publisher,
-                measurement_type=self.params['measurement_type'],
-                lin_coeff=self.params['lin_coeff'],
-                square_coeff=self.params['square_coeff'],
-                cubic_coeff=self.params['cubic_coeff'],
-                fourth_ord_coeff=self.params['fourth_ord_coeff'],
-            )
-        except Exception as e:
-            self.get_logger().error(f'Error reading sensor data: {e}')
-            # Shut down to call destroy_node
-            rclpy.shutdown()
+        # Read and publish sensor data in batches
+        self.gdx_hd.read_publish_batch(
+            publisher=self.publisher,
+            measurement_type=self.params['measurement_type'],
+            lin_coeff=self.params['lin_coeff'],
+            square_coeff=self.params['square_coeff'],
+            cubic_coeff=self.params['cubic_coeff'],
+            fourth_ord_coeff=self.params['fourth_ord_coeff'],
+        )
 
-    def destroy_node(self):
+    def destroy_node(self) -> None:
+        """
+        Called exactly once, from any thread, when SIGINT or launch
+        shutdown occurs. Cancel timers first, then stop GoDirect, then
+        close the serial port. Do NOT use ROS logging / publishers after
+        rclpy is shut down.
+        """
+        # Use print() in exceptions because logger may already be invalid
+        # Cancel the publish timer so no more callbacks run
+        if hasattr(self, 'timer'):
+            print('Cancelling publish timer …', file=sys.stdout)
+            self.timer.cancel()
+
+        # Destroy publisher
         try:
+            print('Destroying publisher …', file=sys.stdout)
+            self.destroy_publisher(self.publisher)
+        except Exception as e:
+            print(f'Error destroying publisher: {e}', file=sys.stderr)
+
+        # Stop streaming and close GoDirect
+        try:
+            print('Stopping GoDirect hand dynamometer …', file=sys.stdout)
             self.gdx_hd.__exit__(None, None, None)
         except Exception as e:
-            self.get_logger().error(f'Error closing GoDirect: {e}')
-        return super().destroy_node()
+            print(f'Error stopping GoDirect: {e}', file=sys.stderr)
+
+        super().destroy_node()
 
 
 def main(args=None):
     rclpy.init(args=args)
     node = GripForcePublisher()
     try:
+        node.initialize_godirect_start_streaming()
         rclpy.spin(node)
-    except KeyboardInterrupt:
-        pass
-    finally:
+    except (KeyboardInterrupt, ExternalShutdownException):
         node.destroy_node()
-        rclpy.shutdown()
+    finally:
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == '__main__':
